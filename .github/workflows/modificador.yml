@@ -39,11 +39,19 @@ jobs:
           [[ "$RECURSO" =~ ^(deployment|statefulset)/[a-z0-9-]+$ ]] || { echo "Recurso inválido (ejemplo permitido: deployment/backend)"; exit 1; }
           [[ "$NS" =~ ^[a-z0-9-]+$ ]] || { echo "Namespace inválido"; exit 1; }
 
-      - name: Configurar kubeconfig
+      - name: Iniciar clúster de Kubernetes (Minikube)
+        uses: medyagh/setup-minikube@master
+
+      - name: Desplegar manifiestos iniciales de K8s
         run: |
-          mkdir -p ~/.kube
-          echo "${{ secrets.KUBE_CONFIG_B64 }}" | base64 -d > ~/.kube/config
-          chmod 600 ~/.kube/config
+          kubectl apply -f k8s/namespace.yaml
+          kubectl apply -f k8s/secret.yaml
+          kubectl apply -f k8s/configmap.yaml
+          kubectl apply -f k8s/postgres.yaml
+          kubectl apply -f k8s/mysql.yaml
+          kubectl apply -f k8s/mongo.yaml
+          kubectl apply -f k8s/deployment.yaml
+          kubectl apply -f k8s/service.yaml
 
       - name: Verificar que el recurso existe
         run: kubectl get "$RECURSO" -n "$NS"
