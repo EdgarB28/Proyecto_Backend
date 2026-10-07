@@ -1,0 +1,99 @@
+name: Cambiar driver de BD
+
+on:
+  workflow_dispatch:
+    inputs:
+      recurso:
+        description: "Recurso K8s (ej. deployment/backend)"
+        required: true
+        default: "deployment/backend"
+        type: string
+      namespace:
+        description: "Namespace"
+        required: true
+        default: "proyecto-backend"
+        type: string
+      driver:
+        description: "Driver de base de datos"
+        required: true
+        type: choice
+        options: [mysql, postgres, mongo]
+
+concurrency:
+  group: cambio-driver-${{ inputs.namespace }}-${{ inputs.recurso }}
+  cancel-in-progress: false
+
+env:
+  RECURSO: ${{ inputs.recurso }}
+  NS: ${{ inputs.namespace }}
+  DRIVER: ${{ inputs.driver }}
+
+jobs:
+  cambiar-driver:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validar inputs
+        run: |
+          [[ "$RECURSO" =~ ^(deployment|statefulset)/[a-z0-9-]+$ ]] || { echo "Recurso inválido (ejemplo permitido: deployment/backend)"; exit 1; }
+          [[ "$NS" =~ ^[a-z0-9-]+$ ]] || { echo "Namespace inválido"; exit 1; }
+
+      - name: Configurar kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG_B64 }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Verificar que el recurso existe
+        run: kubectl get "$RECURSO" -n "$NS"
+
+      - name: Guardar revisión actual (para rollback)
+        run: kubectl rollout history "$RECURSO" -n "$NS"
+
+      - name: Aplicar driver y configuracion de BD
+        run: |
+          case "$DRIVER" in
+            mysql)
+              HOST=mysql-service
+              PORT=3306
+              USER=root
+              NAME=mibd
+              ;;
+            postgres)
+              HOST=postgres-service
+              PORT=5432
+              USER=postgres
+              NAME=mibd
+              ;;
+            mongo)
+              HOST=mongo-service
+              PORT=27017
+              USER=root
+              NAME=mibd
+              ;;
+          esac
+
+          echo "Aplicando driver: $DRIVER"
+          echo "Host: $HOST | Port: $PORT | User: $USER | DB: $NAME"
+
+          kubectl set env "$RECURSO" -n "$NS" \
+            MY_DATABASE_DRIVER="$DRIVER" \
+            DB_HOST="$HOST" \
+            DB_PORT="$PORT" \
+            DB_USER_NAME="$USER" \
+            DB_NAME="$NAME"
+
+      - name: Esperar rollout
+        run: kubectl rollout status "$RECURSO" -n "$NS" --timeout=120s
+
+      - name: Verificar cambio en el clúster
+        run: |
+          echo "### 🚀 Cambio de driver aplicado con éxito" >> $GITHUB_STEP_SUMMARY
+          echo "**Recurso:** $RECURSO | **Namespace:** $NS" >> $GITHUB_STEP_SUMMARY
+          echo "#### Variables de entorno activas en el Pod:" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          kubectl get "$RECURSO" -n "$NS" \
+            -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}={.value}{"\n"}{end}' \
+            | tee -a $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
