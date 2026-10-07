@@ -21,11 +21,6 @@ data "aws_ami" "ubuntu" {
   }
 }
 
-resource "aws_key_pair" "jenkins" {
-  key_name   = "jenkins-key"
-  public_key = file(var.ssh_public_key_path)
-}
-
 resource "aws_security_group" "app" {
   name        = "backend-sg"
   description = "SSH y app"
@@ -65,5 +60,42 @@ resource "aws_instance" "app" {
 
   tags = {
     Name = "backend-server"
+  }
+
+  lifecycle {
+    ignore_changes = [ami, user_data]
+  }
+}
+resource "aws_s3_bucket" "backup" {
+  bucket        = var.bucket_name
+  force_destroy = true
+}
+
+resource "aws_s3_bucket_public_access_block" "backup" {
+  bucket                  = aws_s3_bucket.backup.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_object" "carpeta_database" {
+  bucket  = aws_s3_bucket.backup.id
+  key     = "${var.apellido}/database/"
+  content = ""
+}
+
+resource "aws_s3_object" "carpeta_database_jenkins" {
+  bucket  = aws_s3_bucket.backup.id
+  key     = "${var.apellido}/database-jenkins/"
+  content = ""
+}
+
+resource "aws_key_pair" "jenkins" {
+  key_name   = "jenkins-key"
+  public_key = file(var.ssh_public_key_path)
+
+  lifecycle {
+    ignore_changes = [public_key]
   }
 }
