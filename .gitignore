@@ -1,3 +1,7 @@
 *.tfstate*
+temp_auto_push.bat
 .terraform/
-*.tfvars
+*.tfvars.gitignore
+branch_structure.json
+config.bat
+node_modules
