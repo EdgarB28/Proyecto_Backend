@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: proyecto-backend
+data:
+  MY_DATABASE_DRIVER: "postgres"
+  DB_HOST: "postgres-service"
+  DB_USER_NAME: "postgres"
+  DB_NAME: "mibd"
+  DB_PORT: "5432"

@@ -1,0 +1,55 @@
+name: Cambiar driver de BD
+
+on:
+  workflow_dispatch:
+    inputs:
+      recurso:
+        description: "Recurso k8s (ej: deployment/backend)"
+        required: true
+        default: "deployment/backend"
+      driver:
+        description: "Driver de base de datos"
+        required: true
+        type: choice
+        options: [mysql, postgres, mongo]
+
+env:
+  NAMESPACE: proyecto-backend
+
+jobs:
+  cambiar-driver:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - name: Conectar al cluster
+        run: doctl kubernetes cluster kubeconfig save ${{ secrets.DO_CLUSTER_NAME }}
+
+      - name: Definir host y puerto segun driver
+        run: |
+          case "${{ inputs.driver }}" in
+            mysql)    HOST=mysql-service;    PORT=3306  ;;
+            postgres) HOST=postgres-service; PORT=5432  ;;
+            mongo)    HOST=mongo-service;    PORT=27017 ;;
+          esac
+          echo "HOST=$HOST" >> $GITHUB_ENV
+          echo "PORT=$PORT" >> $GITHUB_ENV
+
+      - name: Actualizar ConfigMap
+        run: |
+          kubectl patch configmap backend-config -n $NAMESPACE --type merge \
+            -p "{\"data\":{\"MY_DATABASE_DRIVER\":\"${{ inputs.driver }}\",\"DB_HOST\":\"$HOST\",\"DB_PORT\":\"$PORT\"}}"
+
+      - name: Reiniciar recurso
+        run: |
+          kubectl rollout restart ${{ inputs.recurso }} -n $NAMESPACE
+          kubectl rollout status ${{ inputs.recurso }} -n $NAMESPACE --timeout=120s
+
+      - name: Verificar
+        run: |
+          kubectl get configmap backend-config -n $NAMESPACE -o jsonpath='{.data}'
+          kubectl exec ${{ inputs.recurso }} -n $NAMESPACE -- env | grep -E "MY_DATABASE_DRIVER|DB_HOST|DB_PORT"
