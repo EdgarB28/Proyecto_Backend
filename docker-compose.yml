@@ -1,0 +1,45 @@
+services:
+  backend:
+    image: ${DOCKERHUB_USER}/proyecto-backend:latest
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      MY_DATABASE_DRIVER: postgres
+      DB_HOST: postgres
+      DB_USER_NAME: postgres
+      DB_NAME: mibd
+      DB_PORT: "5432"
+      DB_PASSWORD: ${DB_PASSWORD}
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:16
+    restart: always
+    environment:
+      POSTGRES_DB: mibd
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  backup:
+    image: ${DOCKERHUB_USER}/db-backup:latest
+    profiles: ["backup"]
+    environment:
+      MY_DATABASE_DRIVER: postgres
+      DB_HOST: postgres
+      DB_USER_NAME: postgres
+      DB_NAME: mibd
+      DB_PORT: "5432"
+      DB_PASSWORD: ${DB_PASSWORD}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_DEFAULT_REGION: us-east-1
+      S3_PATH: s3://bucket-codigo-backup/edgargalvez/database-jenkins
+    depends_on:
+      - postgres
+
+volumes:
+  pgdata:

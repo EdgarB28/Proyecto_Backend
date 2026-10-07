@@ -1,0 +1,6 @@
+#cloud-config
+runcmd:
+  - curl -fsSL https://get.docker.com | sh
+  - usermod -aG docker ubuntu
+  - mkdir -p /opt/app
+  - chown ubuntu:ubuntu /opt/app
