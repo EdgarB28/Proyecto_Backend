@@ -6,3 +6,11 @@ variable "region" {
 variable "ssh_public_key_path" {
   type = string
 }
+variable "bucket_name" {
+  type    = string
+  default = "bucket-codigo-backup"
+}
+
+variable "apellido" {
+  type = string
+}
